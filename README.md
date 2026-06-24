@@ -53,6 +53,20 @@ npm run build   # outputs static assets to dist/
 npm start       # serves dist/ + /api/claude on 0.0.0.0:$PORT (default 3000)
 ```
 
+## Deploy to Render
+
+A [`render.yaml`](./render.yaml) Blueprint is included. To deploy:
+
+1. In the Render dashboard: **New → Blueprint**, then connect this repo.
+2. Render reads `render.yaml` and provisions a Node **web service** (`npm ci && npm run build` → `npm start`, bound to `0.0.0.0:$PORT`).
+3. Click **Apply**. The service comes up in **Demo mode** with no secrets needed — the shareable URL works immediately.
+4. (Optional) To enable Live AI, add `ANTHROPIC_API_KEY` in the service's **Environment** settings. It is marked `sync: false`, so it's never committed.
+
+Make sure the branch Render syncs (the repo's default branch, or one you select)
+contains `render.yaml`. On the **free** plan the service spins down after ~15
+minutes of inactivity, so the first hit after idle takes ~30–60s to wake — bump
+to a paid instance type if you need it always-on for a recruiter link.
+
 ## Architecture
 
 ```

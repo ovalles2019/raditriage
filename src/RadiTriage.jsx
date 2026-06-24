@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   Activity, AlertTriangle, Clock, FileText, Send, Shield, Users,
   Stethoscope, Zap, Search, LayoutDashboard, Lock,
-  CheckCircle2, Loader2, Dog, Cat, Gauge, Sparkles, FlaskConical,
+  CheckCircle2, Loader2, Dog, Cat, Gauge, Sparkles, FlaskConical, Trash2,
 } from "lucide-react";
 import { callClaude } from "./api.js";
 
@@ -91,6 +91,24 @@ const ROLES = {
     blurb: "Platform ops: SLAs, access control, audit log. No clinical edit rights." },
 };
 
+// ---------- localStorage helpers (queue survives a refresh mid-demo) ----------
+function loadLS(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLS(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable — non-fatal */
+  }
+}
+
 function safeParseJSON(text) {
   const clean = String(text).replace(/```json/g, "").replace(/```/g, "").trim();
   try { return JSON.parse(clean); } catch {
@@ -166,7 +184,8 @@ export default function RadiTriage() {
   const [pipeline, setPipeline] = useState(null); // {classification, retrieved, report, ticket}
   const [running, setRunning] = useState(false);
   const [stageLog, setStageLog] = useState([]);
-  const [queue, setQueue] = useState([]);
+  const [queue, setQueue] = useState(() => loadLS("raditriage.queue", []));
+  const [triageMs, setTriageMs] = useState(() => loadLS("raditriage.triageMs", []));
   const [addendumQ, setAddendumQ] = useState("");
   const [addenda, setAddenda] = useState([]);
   const [askingAdd, setAskingAdd] = useState(false);
@@ -176,6 +195,17 @@ export default function RadiTriage() {
   useEffect(() => {
     if (!allowed.includes(tab)) setTab(allowed[0]);
   }, [role]); // eslint-disable-line
+
+  // persist the queue + timing so a refresh doesn't wipe the demo state
+  useEffect(() => saveLS("raditriage.queue", queue), [queue]);
+  useEffect(() => saveLS("raditriage.triageMs", triageMs), [triageMs]);
+
+  // auto-dismiss the flash banner so it never lingers on screen
+  useEffect(() => {
+    if (!flash) return undefined;
+    const id = setTimeout(() => setFlash(null), 6000);
+    return () => clearTimeout(id);
+  }, [flash]);
 
   const liveErrorHandler = (e) =>
     setFlash({ kind: "warn", msg: `Live AI unavailable (${e.message}) — showing demo output instead.` });
@@ -193,12 +223,14 @@ export default function RadiTriage() {
     try {
       // STAGE 1: classify + prioritize
       setStageLog((l) => [...l, { s: "Classifying urgency", state: "run" }]);
+      const t0 = Date.now();
       const classRaw = await callClaude(
         `You are a veterinary radiology triage agent. Given a submitted case, output ONLY JSON:
 {"priority":"STAT|Standard|Routine","suspected":["short finding 1","short finding 2"],"rationale":"one sentence","confidence":0-100}
 STAT = life-threatening (obstruction, GDV, CHF, pneumothorax, severe effusion). Standard = significant non-emergent. Routine = screening/mild.`,
         caseText, 400, mode, liveErrorHandler
       );
+      setTriageMs((arr) => [...arr.slice(-19), Date.now() - t0]);
       const classification = safeParseJSON(classRaw) || {
         priority: "Standard", suspected: ["Pattern unclear"], rationale: "Defaulted.", confidence: 50,
       };
@@ -277,6 +309,15 @@ Triage: ${pipeline.classification.priority}, suspected ${pipeline.classification
   // ----- derived dashboard metrics -----
   const statCount = queue.filter((q) => q.priority === "STAT").length;
   const onTime = queue.length ? Math.max(96, 100 - statCount).toFixed(1) : "99.9";
+  const avgTriage = triageMs.length
+    ? `${(triageMs.reduce((a, b) => a + b, 0) / triageMs.length / 1000).toFixed(1)} s`
+    : "—";
+
+  function clearQueue() {
+    setQueue([]);
+    setTriageMs([]);
+    setFlash({ kind: "success", msg: "Queue cleared." });
+  }
 
   const RoleIcon = ROLES[role].icon;
 
@@ -393,7 +434,13 @@ Triage: ${pipeline.classification.priority}, suspected ${pipeline.classification
 
       <div style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
         {flash && (
-          <div style={{ ...FLASH_STYLES[flash.kind], padding: "10px 14px", borderRadius: 10, marginBottom: 14, fontSize: 13, fontWeight: 600 }}>
+          <div
+            role="status"
+            aria-live="polite"
+            onClick={() => setFlash(null)}
+            title="Dismiss"
+            style={{ ...FLASH_STYLES[flash.kind], padding: "10px 14px", borderRadius: 10, marginBottom: 14, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >
             {flash.msg}
           </div>
         )}
@@ -578,12 +625,23 @@ Triage: ${pipeline.classification.priority}, suspected ${pipeline.classification
               <Stat icon={Clock} label="STAT SLA" value="35 min" sub="target turnaround" accent={C.red} />
               <Stat icon={Activity} label="On-time" value={`${onTime}%`} sub="last 24h" accent={C.green} />
               <Stat icon={FileText} label="Cases in queue" value={queue.length} sub={`${statCount} STAT`} accent={C.teal} />
-              <Stat icon={Zap} label="Avg triage" value="1.8 s" sub="AI classification" accent={C.pink} />
+              <Stat icon={Zap} label="Avg triage" value={avgTriage} sub="AI classification" accent={C.pink} />
             </div>
 
             <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 12, display: "flex", alignItems: "center", gap: 7 }}>
-                <Users size={16} color={C.navy} /> Specialist queue
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 7 }}>
+                  <Users size={16} color={C.navy} /> Specialist queue
+                </div>
+                {queue.length > 0 && (
+                  <button onClick={clearQueue} aria-label="Clear queue" style={{
+                    display: "flex", alignItems: "center", gap: 5, border: `1px solid ${C.line}`,
+                    background: C.bg, color: C.slate, cursor: "pointer", fontWeight: 600,
+                    fontSize: 12, padding: "5px 10px", borderRadius: 8,
+                  }}>
+                    <Trash2 size={13} /> Clear
+                  </button>
+                )}
               </div>
               {queue.length === 0 ? (
                 <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>No cases yet. Submit one from Case Intake.</div>
@@ -591,7 +649,8 @@ Triage: ${pipeline.classification.priority}, suspected ${pipeline.classification
                 queue.map((t) => (
                   <div key={t.id} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-                    padding: "11px 0", borderTop: `1px solid ${C.line}`,
+                    padding: "11px 0 11px 11px", borderTop: `1px solid ${C.line}`,
+                    borderLeft: t.priority === "STAT" ? `3px solid ${C.red}` : "3px solid transparent",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       {t.species === "Cat" ? <Cat size={17} color={C.slate} /> : <Dog size={17} color={C.slate} />}
@@ -654,6 +713,9 @@ Triage: ${pipeline.classification.priority}, suspected ${pipeline.classification
         button:focus-visible, input:focus-visible { outline: 2px solid ${C.teal}; outline-offset: 2px; }
         @media (max-width: 720px) {
           [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 560px) {
+          [style*="grid-template-columns: 1.1fr 2fr 1fr"] { grid-template-columns: 1fr !important; gap: 6px !important; }
         }
       `}</style>
     </div>
