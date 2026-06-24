@@ -25,7 +25,13 @@ export async function callClaude(systemPrompt, userContent, maxTokens = 1100, mo
     });
     if (!res.ok) {
       const info = await res.json().catch(() => ({}));
-      throw new Error(info.error || `Proxy responded ${res.status}`);
+      // The proxy returns either our own { error } shape or a forwarded
+      // upstream error like { error: { message } } — handle both.
+      const msg =
+        typeof info.error === "string"
+          ? info.error
+          : info.error?.message || `Proxy responded ${res.status}`;
+      throw new Error(msg);
     }
     const data = await res.json();
     const text = (data.content || [])
