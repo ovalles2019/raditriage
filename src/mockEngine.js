@@ -161,18 +161,22 @@ function answerAddendum(question, userContent) {
 // — matching the contract the component expects from the live model.
 export function mockClaude(systemPrompt, userContent) {
   const sys = (systemPrompt || "").toLowerCase();
-  const scenario = detectScenario(userContent || "");
+  const content = userContent || "";
+  // The report prompt appends retrieved "similar prior cases" as reference.
+  // Detect the scenario from the actual case/suspected text only, so those
+  // reference cases don't skew the draft toward their content.
+  const focus = content.split(/SIMILAR PRIOR CASES/i)[0];
 
   if (sys.includes("triage agent")) {
-    return JSON.stringify(CLASSIFY[scenario]);
+    return JSON.stringify(CLASSIFY[detectScenario(content)]);
   }
   if (sys.includes("drafting a preliminary report") || sys.includes("preliminary report")) {
-    return JSON.stringify(REPORT[scenario]);
+    return JSON.stringify(REPORT[detectScenario(focus)]);
   }
   if (sys.includes("follow-up question")) {
-    const m = (userContent || "").match(/VET QUESTION:\s*([\s\S]*)$/i);
-    const question = m ? m[1].trim() : userContent || "";
-    return answerAddendum(question, userContent || "");
+    const m = content.match(/VET QUESTION:\s*([\s\S]*)$/i);
+    const question = m ? m[1].trim() : content;
+    return answerAddendum(question, content);
   }
   return JSON.stringify(REPORT.default);
 }
