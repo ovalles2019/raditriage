@@ -1,0 +1,26 @@
+# Render Blueprint for RadiTriage.
+# Single Node web service: builds the Vite SPA and serves it (plus the
+# /api/claude proxy) from the Express server in server/index.js.
+#
+# Works out of the box in Demo mode with no secrets. To enable Live AI, set
+# ANTHROPIC_API_KEY in the Render dashboard (it is marked sync: false so it is
+# never stored in the repo).
+#
+# Schema: https://render.com/schema/render.yaml.json
+services:
+  - type: web
+    name: raditriage
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-sonnet-latest
+      - key: ANTHROPIC_API_KEY
+        sync: false
