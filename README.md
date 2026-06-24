@@ -63,9 +63,10 @@ A [`render.yaml`](./render.yaml) Blueprint is included. To deploy:
 4. (Optional) To enable Live AI, add `ANTHROPIC_API_KEY` in the service's **Environment** settings. It is marked `sync: false`, so it's never committed.
 
 Make sure the branch Render syncs (the repo's default branch, or one you select)
-contains `render.yaml`. On the **free** plan the service spins down after ~15
-minutes of inactivity, so the first hit after idle takes ~30–60s to wake — bump
-to a paid instance type if you need it always-on for a recruiter link.
+contains `render.yaml`. The Blueprint provisions a **`starter`** instance so the
+service stays always-on (no spin-down). Switch `plan` to `free` if you want the
+free tier (which sleeps after ~15 min idle), or to `standard`/`pro` for more
+resources.
 
 ## Architecture
 

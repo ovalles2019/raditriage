@@ -8,10 +8,10 @@
 #
 # Schema: https://render.com/schema/render.yaml.json
 services:
-  - type: web
+  -     type: web
     name: raditriage
     runtime: node
-    plan: free
+    plan: starter
     region: oregon
     buildCommand: npm ci && npm run build
     startCommand: npm start
@@ -21,6 +21,6 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: ANTHROPIC_MODEL
-        value: claude-3-5-sonnet-latest
+        value: claude-sonnet-4-6
       - key: ANTHROPIC_API_KEY
         sync: false

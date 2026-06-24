@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 const apiKey = process.env.ANTHROPIC_API_KEY || "";
-const model = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest";
+const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const port = process.env.PORT || 3000;
 
 app.post("/api/claude", (req, res) => handleClaude(req, res, { apiKey, model }));
